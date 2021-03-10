@@ -33,11 +33,19 @@ contract aVault is IVault, ERC20, FeeManager, Rescuable {
     bool public override immutable native;
 
     constructor (
-        address underlyingAsset, string memory aAssetName, string memory aAssetSymbol, bool nativeCurrency
+        address underlyingAsset,
+        string memory aAssetName, string memory aAssetSymbol, uint8 aAssetDecimals,
+        bool nativeCurrency
     ) ERC20(
-        aAssetName, aAssetSymbol
+        aAssetName, aAssetSymbol, aAssetDecimals
     ) {
         native = nativeCurrency;
+        try ERC20(underlyingAsset).decimals() {
+            require(
+                ERC20(underlyingAsset).decimals() == aAssetDecimals,
+                "aVault@constructor: inconsistent asset decimals");
+        } catch {}
+        
         require(
             !nativeCurrency || underlyingAsset == address(WHT),
             "aVault@constructor: asset should be WHT for native currency"

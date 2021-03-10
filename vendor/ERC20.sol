@@ -7,7 +7,7 @@
  * (https://github.com/autumn-finance/openzeppelin-contracts/blob/release-v3.4/contracts/token/ERC20/ERC20.sol)
  *
  * Applied Changes:
- *  - None
+ *  - Add decimals to constructor instead of hardcode to 18
  */
 
 pragma solidity ^0.7.3;
@@ -62,10 +62,10 @@ contract ERC20 is Context, IERC20 {
      * All three of these values are immutable: they can only be set once during
      * construction.
      */
-    constructor (string memory name_, string memory symbol_) {
+    constructor (string memory name_, string memory symbol_, uint8 decimals_) {
         _name = name_;
         _symbol = symbol_;
-        _decimals = 18;
+        _decimals = decimals_;
     }
 
     /**
