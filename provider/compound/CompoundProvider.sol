@@ -22,16 +22,22 @@ abstract contract CompoundProvider is AbstractProvider {
 
     constructor(address strategy_, bool native_) AbstractProvider(strategy_, native_) {
         IERC20(asset()).safeIncreaseAllowance(compound(), uint256(-1));
-        IERC20(miningToken()).safeIncreaseAllowance(address(MDEX), uint256(-1));
+        IERC20(token()).safeIncreaseAllowance(address(MDEX), uint256(-1));
     }
 
     // Abstracts
 
     function compound() public virtual view returns (address);
 
-    function miningToken() public virtual view returns (address);
+    function token() public virtual view returns (address);
 
     function swapPath() public virtual view returns (address[] memory);
+
+    function _claim() internal virtual { // could be override
+        address[] memory cTokens = new address[](1);
+        cTokens[0] = compound();
+        IComptroller(comptroller()).claimComp(address(this), cTokens);
+    }
 
     // Impls
 
@@ -57,26 +63,30 @@ abstract contract CompoundProvider is AbstractProvider {
     }
 
     function update() external override {
-        uint256 amountMining = claimMiningToken();
-        uint256 balanceMining = IERC20(miningToken()).balanceOf(address(this));
-        if (balanceMining == 0) {
+        uint256 claimed = claim();
+        // use balance value because that claim is public
+        claimed = IERC20(token()).balanceOf(address(this));
+        if (claimed == 0) {
             return;
         }
-        amountMining = swapMiningForAsset(balanceMining);
-        if (amountMining == 0) {
+        claimed = FeeManager.chargeFeeWith("yield", token(), claimed);
+        if (claimed == 0) {
             return;
         }
-        FeeManager.chargeFeeWith("yield", asset(), amountMining);
+        uint256 asset = swapForAssetByPath(claimed);
+        if (asset == 0) {
+            return;
+        }
         depositAll();
     }
 
-    function swapMiningForAsset(uint256 amountMining) private returns (uint256) {
+    function swapForAssetByPath(uint256 inputAmount) private returns (uint256) {
         IERC20 asset_ = IERC20(asset());
         uint256 beforeAsset = asset_.balanceOf(address(this));
 
         // this may result in various errors, just ignore
         try MDEX.swapExactTokensForTokens(
-            amountMining, 0, swapPath(), address(this), block.timestamp.add(20 minutes)
+            inputAmount, 0, swapPath(), address(this), block.timestamp.add(20 minutes)
         ) {
             return asset_.balanceOf(address(this)).sub(beforeAsset);
         } catch {
@@ -84,16 +94,14 @@ abstract contract CompoundProvider is AbstractProvider {
         }
     }
 
-    function claimMiningToken() public returns (uint256) {
-        IERC20 mining = IERC20(miningToken());
-        uint256 beforeMining = mining.balanceOf(address(this));
-        address[] memory cTokens = new address[](1);
-        cTokens[0] = compound();
-        comptroller().claimComp(address(this), cTokens);
-        return mining.balanceOf(address(this)).sub(beforeMining);
+    function claim() public returns (uint256) {
+        IERC20 reward = IERC20(token());
+        uint256 before = reward.balanceOf(address(this));
+        _claim();
+        return reward.balanceOf(address(this)).sub(before);
     }
 
-    function comptroller() private view returns (IComptroller) {
-        return IComptroller(ICompound(compound()).comptroller());
+    function comptroller() internal view returns (address) {
+        return ICompound(compound()).comptroller();
     }
 }

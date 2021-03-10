@@ -16,7 +16,7 @@ abstract contract LendHubProvider is CompoundProvider {
 
     // CompoundProvider overrides
 
-    function miningToken() public override pure returns (address) {
+    function token() public override pure returns (address) {
         return LHB;
     }
 }
