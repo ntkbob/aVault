@@ -45,6 +45,11 @@ contract StrategyV1 is IStrategy, PermissionManager {
         PermissionManager.setSingletonPermission("vault", vault);
     }
 
+    /// @dev updates the path of swapping to stablecoin, only used for stats
+    function setValuePath(address[] memory valuePath_) onlyOwner() external {
+        valuePath = valuePath_;
+    }
+
     /*
      * Strategy Interface
      */
@@ -90,7 +95,7 @@ contract StrategyV1 is IStrategy, PermissionManager {
             }
             IMdexPair pair = IMdexPair(factory.pairFor(valuePath[i], valuePath[i + 1]));
             (uint112 reserve0, uint112 reserve1,) = pair.getReserves();
-            lastPathAmountOut = MDEX.quote(lastPathAmountOut, reserve1, reserve0);
+            lastPathAmountOut = MDEX.quote(lastPathAmountOut, reserve0, reserve1);
         }
         return lastPathAmountOut;
     }
@@ -107,7 +112,13 @@ contract StrategyV1 is IStrategy, PermissionManager {
         require(amount != 0, "StrategyV1@deposit: cannot deposit zero");
 
         amount = _asset.safeReceive(_msgSender(), amount);
-        return provider().deposit(amount);
+        return _approveAndDeposit(amount);
+    }
+
+    function _approveAndDeposit(uint256 amount) private returns (uint256) {
+        IProvider p = provider();
+        _asset.safeApprove(address(p), amount);
+        return p.deposit(amount);
     }
 
     function withdraw(uint256 amount) requirePermission("vault") public override returns (uint256) {
@@ -232,7 +243,6 @@ contract StrategyV1 is IStrategy, PermissionManager {
         
         providers[name] = p;
         providerNames.push(name);
-        _asset.safeIncreaseAllowance(provider_, uint256(-1));
         emit ProviderAdded(name, provider_);
     }
 
@@ -293,7 +303,7 @@ contract StrategyV1 is IStrategy, PermissionManager {
         uint256 balance_ = balanceOf();
         amount = amount == 0 ? balance_ : amount;
         require(balance_ >= amount, "StrategyV1@adjustDeposit: amount exceeds balance");
-        amount = provider().deposit(amount);
+        amount = _approveAndDeposit(amount);
 
         emit StrategyAdjusted(_msgSender(), address(p), 0, amount);
         return amount;

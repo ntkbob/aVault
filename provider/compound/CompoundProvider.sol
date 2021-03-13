@@ -20,10 +20,7 @@ abstract contract CompoundProvider is AbstractProvider {
     using SafeERC20 for IERC20;
     using SafeMath for uint256;
 
-    constructor(address strategy_, bool native_) AbstractProvider(strategy_, native_) {
-        IERC20(asset()).safeIncreaseAllowance(compound(), uint256(-1));
-        IERC20(token()).safeIncreaseAllowance(address(MDEX), uint256(-1));
-    }
+    constructor(address strategy_, bool native_) AbstractProvider(strategy_, native_) {}
 
     // Abstracts
 
@@ -51,6 +48,7 @@ abstract contract CompoundProvider is AbstractProvider {
         if (native) {
             ICHT(compound()).mint{ value: amount }();
         } else {
+            IERC20(asset()).safeIncreaseAllowance(compound(), amount);
             require(ICToken(compound()).mint(amount) == 0, "CompoundProvider@_deposit: deposit was unsuccessful");
         }
     }
@@ -84,6 +82,7 @@ abstract contract CompoundProvider is AbstractProvider {
         IERC20 asset_ = IERC20(asset());
         uint256 beforeAsset = asset_.balanceOf(address(this));
 
+        IERC20(token()).safeIncreaseAllowance(address(MDEX), inputAmount);
         // this may result in various errors, just ignore
         try MDEX.swapExactTokensForTokens(
             inputAmount, 0, swapPath(), address(this), block.timestamp.add(20 minutes)

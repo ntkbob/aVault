@@ -114,9 +114,8 @@ contract aVault is IVault, ERC20, FeeManager, Rescuable {
         }
 
         strategy = newStrategy;
-        _asset.safeIncreaseAllowance(address(strategy), uint256(-1));
         if (balanceOf() != 0) {
-            strategy.deposit(balanceOf());
+            _approveAndDeposit(balanceOf());
         }
     }
 
@@ -214,7 +213,7 @@ contract aVault is IVault, ERC20, FeeManager, Rescuable {
             amount = _asset.safeReceive(_msgSender(), amount);
         }
 
-        amount = strategy.deposit(amount);
+        amount = _approveAndDeposit(amount);
         uint256 share = assetToShareBy(before, amount);
         _mint(_msgSender(), share);
 
@@ -222,6 +221,11 @@ contract aVault is IVault, ERC20, FeeManager, Rescuable {
             _update();
         }
         return share;
+    }
+
+    function _approveAndDeposit(uint256 amount) private returns (uint256) {
+        _asset.safeIncreaseAllowance(address(strategy), amount);
+        return strategy.deposit(amount);
     }
 
     /**
